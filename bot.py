@@ -78,9 +78,7 @@ def webhook():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    # تهيئة البوت مرة واحدة
     asyncio.run(app_bot.initialize())
-    # تعيين webhook
     requests.post(f"{TELEGRAM_URL}/setWebhook", json={"url": WEBHOOK_URL})
     logging.info(f"Webhook set to {WEBHOOK_URL}")
     app.run(host='0.0.0.0', port=PORT)
