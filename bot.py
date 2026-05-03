@@ -5,12 +5,10 @@ from flask import Flask, request
 from telegram import Update, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-# ========== نفس القيم المدمجة (لا تغير شيئاً) ==========
 BOT_TOKEN = "8511885419:AAHi0yNNaA1IVDtulFZBokSb9l_KbXaQe38"
 ADMIN_CHAT = "6829017835"
-RENDER_URL = "https://goldengeneral.onrender.com"   # رابط الخدمة الحالي
+RENDER_URL = "https://goldengeneral.onrender.com"
 PORT = int(os.environ.get("PORT", 10000))
-# ===================================================
 
 TELEGRAM_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
@@ -20,14 +18,13 @@ app = Flask(__name__)
 app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎥 أرسل رابط فيديو أو صورة من فيسبوك، إنستغرام، تيك توك، تويتر... وسأحمله لك فوراً.")
+    await update.message.reply_text("🎥 أرسل رابط فيديو/صورة (فيسبوك، إنستغرام، تيك توك…) وسأحمله فورًا.")
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     if not url.startswith("http"):
         url = "https://" + url
     msg = await update.message.reply_text("⏳ جاري التحميل...")
-
     tmp_dir = tempfile.mkdtemp()
     try:
         ydl_opts = {
@@ -41,12 +38,11 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             info = ydl.extract_info(url, download=True)
             files = glob.glob(os.path.join(tmp_dir, '*'))
             if not files:
-                await msg.edit_text("❌ لم يتم العثور على وسائط.")
+                await msg.edit_text("❌ لا وسائط.")
                 return
-            # إرسال كل ملف (غالباً واحد)
             for file_path in files:
                 size = os.path.getsize(file_path)
-                if size < 50 * 1024 * 1024:  # حد 50 ميغا
+                if size < 50 * 1024 * 1024:
                     with open(file_path, 'rb') as f:
                         await update.message.reply_document(
                             document=InputFile(f),
@@ -54,11 +50,11 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             caption="تم التحميل ✅"
                         )
                 else:
-                    await update.message.reply_text("⚠️ الملف أكبر من 50 ميغا، تعذر إرساله.")
+                    await update.message.reply_text("⚠️ الملف أكبر من 50 ميغا.")
         await msg.delete()
         shutil.rmtree(tmp_dir, ignore_errors=True)
     except Exception as e:
-        await msg.edit_text(f"❌ فشل التحميل: {e}")
+        await msg.edit_text(f"❌ خطأ: {e}")
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 app_bot.add_handler(CommandHandler("start", start))
