@@ -11,7 +11,7 @@ BOT_TOKEN = "8511885419:AAHi0yNNaA1IVDtulFZBokSb9l_KbXaQe38"
 ADMIN_CHAT = "6829017835"
 RENDER_URL = "https://goldengeneral.onrender.com"
 PORT = int(os.environ.get("PORT", 10000))
-LOGO_PATH = "/app/logo.png"   # <-- اسم الصورة المرفوعة
+LOGO_PATH = "/app/logo.PNG"   # تم التعديل ليطابق الاسم في المستودع
 # ===================================
 
 app = Flask(__name__)
