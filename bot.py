@@ -12,7 +12,6 @@ ADMIN_CHAT = "6829017835"
 RENDER_URL = "https://goldengeneral.onrender.com"
 PORT = int(os.environ.get("PORT", 10000))
 LOGO_PATH = "/app/logo.PNG"
-COOKIE_PATH = "/app/cookies.txt"  # ملف كوكيز Netscape (اختياري لكن نحتاجه لتجاوز الحظر)
 # ===================================
 
 app = Flask(__name__)
@@ -49,16 +48,17 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'no_warnings': True,
             'merge_output_format': 'mp4',
             'socket_timeout': 30,
-            'retries': 3,
-            # === تجاوز حظر البوتات (يوتيوب وغيره) ===
-            'user_agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            'retries': 5,
+            'user_agent': 'com.google.android.youtube/19.29.37 (Linux; U; Android 14; en_US) gzip',  # هوية تطبيق يوتيوب الرسمي
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web'],  # يفضّل android لأنه لا يطلب تحقق
+                    'player_client': ['android_vr', 'android', 'web'],
+                    'skip': ['hls', 'dash'],
                 }
             },
-            # إذا وُجد ملف كوكيز، استخدمه
-            'cookiefile': COOKIE_PATH if os.path.exists(COOKIE_PATH) else None,
+            # يمنع استخدام أي ملف كوكيز خارجي
+            'cookiefile': None,
+            'cookiesfrombrowser': None,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.extract_info(url, download=True)
