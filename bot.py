@@ -11,7 +11,8 @@ BOT_TOKEN = "8511885419:AAHi0yNNaA1IVDtulFZBokSb9l_KbXaQe38"
 ADMIN_CHAT = "6829017835"
 RENDER_URL = "https://goldengeneral.onrender.com"
 PORT = int(os.environ.get("PORT", 10000))
-LOGO_PATH = "/app/logo.PNG"   # تم التعديل ليطابق الاسم في المستودع
+LOGO_PATH = "/app/logo.PNG"
+COOKIE_PATH = "/app/cookies.txt"  # ملف كوكيز Netscape (اختياري لكن نحتاجه لتجاوز الحظر)
 # ===================================
 
 app = Flask(__name__)
@@ -22,9 +23,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🏅 **بوت الجنرال الذهبي - المحمِّل الأسطوري**\n\n"
         "🎥 أرسل رابط فيديو أو صورة من أي منصة تواصل اجتماعي\n"
         "وسأقوم بتحميله وإرساله إليك فورًا.\n\n"
-        "المنصات المدعومة: فيسبوك، إنستغرام، تيك توك، تويتر… والمزيد."
+        "المنصات المدعومة: فيسبوك، إنستغرام، تيك توك، تويتر، يوتيوب… والمزيد."
     )
-    # إرسال الصورة أولاً إن وُجِدت
     if os.path.exists(LOGO_PATH):
         with open(LOGO_PATH, 'rb') as img:
             await update.message.reply_photo(
@@ -50,6 +50,15 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'merge_output_format': 'mp4',
             'socket_timeout': 30,
             'retries': 3,
+            # === تجاوز حظر البوتات (يوتيوب وغيره) ===
+            'user_agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web'],  # يفضّل android لأنه لا يطلب تحقق
+                }
+            },
+            # إذا وُجد ملف كوكيز، استخدمه
+            'cookiefile': COOKIE_PATH if os.path.exists(COOKIE_PATH) else None,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.extract_info(url, download=True)
