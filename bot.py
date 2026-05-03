@@ -1,14 +1,17 @@
-import os, uuid, logging, asyncio, tempfile, shutil, glob
+import os, uuid, logging, asyncio, tempfile, shutil, glob, time
 import requests
 import yt_dlp
 from flask import Flask, request
 from telegram import Update, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from threading import Thread
 
+# ========== القيم المدمجة ==========
 BOT_TOKEN = "8511885419:AAHi0yNNaA1IVDtulFZBokSb9l_KbXaQe38"
 ADMIN_CHAT = "6829017835"
-RENDER_URL = "https://goldengeneral.onrender.com"
+RENDER_URL = "https://goldengeneral.onrender.com"   # بدون / في النهاية
 PORT = int(os.environ.get("PORT", 10000))
+# ===================================
 
 TELEGRAM_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
@@ -38,7 +41,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             info = ydl.extract_info(url, download=True)
             files = glob.glob(os.path.join(tmp_dir, '*'))
             if not files:
-                await msg.edit_text("❌ لا وسائط.")
+                await msg.edit_text("❌ لم يتم العثور على وسائط.")
                 return
             for file_path in files:
                 size = os.path.getsize(file_path)
@@ -70,9 +73,18 @@ def webhook():
     asyncio.run(app_bot.process_update(update))
     return "OK"
 
+def set_webhook_later(delay=5):
+    """ضبط الويبهوك بعد أن يصبح الخادم جاهزاً"""
+    time.sleep(delay)
+    resp = requests.post(f"{TELEGRAM_URL}/setWebhook", json={"url": WEBHOOK_URL})
+    if resp.status_code == 200 and resp.json().get("ok"):
+        logging.info(f"Webhook set successfully: {WEBHOOK_URL}")
+    else:
+        logging.error(f"Failed to set webhook: {resp.text}")
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     asyncio.run(app_bot.initialize())
-    requests.post(f"{TELEGRAM_URL}/setWebhook", json={"url": WEBHOOK_URL})
-    logging.info(f"Webhook set to {WEBHOOK_URL}")
+    # تشغيل الخادم، ثم ضبط الويبهوك بعد 5 ثوانٍ
+    Thread(target=set_webhook_later, daemon=True).start()
     app.run(host='0.0.0.0', port=PORT)
